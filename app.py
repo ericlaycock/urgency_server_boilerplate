@@ -50,7 +50,7 @@ def assess_urgency(chunk_transcript: str, current_summary: str) -> int:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are an expert in aviation communications. Rate the urgency level on a scale of 1-10, where 10 is immediate emergency."},
+            {"role": "system", "content": "You are an expert in aviation communications. Rate the urgency level on a scale of 1-10, where 10 is immediate emergency. Maintain a moderate urgency level where ongoing attention or caution is warranted"},
             {"role": "user", "content": f"Previous context: {current_summary}\nPilot's last communication: {chunk_transcript}\nProvide only the number."}
         ]
     )
