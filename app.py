@@ -9,8 +9,16 @@ import openai
 from faster_whisper import WhisperModel
 import torch
 import uuid
+import logging
 
 app = Flask(__name__)
+
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Initialize OpenAI and Whisper as before
 openai_key = os.environ.get("OPENAI_KEY")
@@ -43,7 +51,7 @@ def assess_urgency(chunk_transcript: str, current_summary: str) -> int:
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are an expert in aviation communications. Rate the urgency level on a scale of 1-10, where 10 is immediate emergency."},
-            {"role": "user", "content": f"Context: {current_summary}\nCommunication: {chunk_transcript}\nProvide only the number."}
+            {"role": "user", "content": f"Previous context: {current_summary}\nPilot's last communication: {chunk_transcript}\nProvide only the number."}
         ]
     )
     try:
@@ -63,11 +71,9 @@ def process_audio_clip(file_data: bytes, session_id: str):
         chunk_transcript = " ".join([segment.text for segment in segments])
         urgency = assess_urgency(chunk_transcript, sessions[session_id]["current_summary"])
         
-        # Update session transcript and summary
+        # Just update the transcript, don't worry about summary
         with session_lock:
             sessions[session_id]["complete_transcript"] += " " + chunk_transcript
-            # Optionally, update summary periodically
-            sessions[session_id]["current_summary"] = summarize_transcript(sessions[session_id]["complete_transcript"])
         
         return chunk_transcript, urgency
     except Exception as e:
@@ -81,6 +87,7 @@ def process_audio_clip(file_data: bytes, session_id: str):
 def start_session():
     """Start a new session and return a unique session_id."""
     session_id = str(uuid.uuid4())
+    logger.info(f"Starting new session with ID: {session_id}")
     with session_lock:
         sessions[session_id] = {"complete_transcript": "", "current_summary": ""}
     return jsonify({"session_id": session_id})
@@ -88,7 +95,9 @@ def start_session():
 @app.route('/uploadAudio', methods=['POST'])
 def upload_audio():
     session_id = request.args.get("session_id")
+    logger.info(f"Received audio upload request for session: {session_id}")
     if not session_id or session_id not in sessions:
+        logger.error(f"Invalid session ID: {session_id}")
         return jsonify({"error": "Invalid or missing session_id"}), 400
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -106,10 +115,28 @@ def upload_audio():
 @app.route('/sessionStatus', methods=['GET'])
 def session_status():
     session_id = request.args.get("session_id")
+    logger.info(f"Session status requested for session: {session_id}")
     if not session_id or session_id not in sessions:
+        logger.error(f"Invalid session ID: {session_id}")
         return jsonify({"error": "Invalid or missing session_id"}), 400
     with session_lock:
         return jsonify(sessions[session_id])
+
+@app.route('/getSummary', methods=['GET'])
+def get_summary():
+    """Get a fresh summary for the session's transcript."""
+    session_id = request.args.get("session_id")
+    logger.info(f"Summary requested for session: {session_id}")
+    if not session_id or session_id not in sessions:
+        logger.error(f"Invalid session ID: {session_id}")
+        return jsonify({"error": "Invalid or missing session_id"}), 400
+    
+    with session_lock:
+        complete_transcript = sessions[session_id]["complete_transcript"]
+        summary = summarize_transcript(complete_transcript)
+        sessions[session_id]["current_summary"] = summary
+        logger.info(f"Summary generated for session: {session_id}")
+        return jsonify({"summary": summary})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4000)
