@@ -13,10 +13,10 @@ import uuid
 app = Flask(__name__)
 
 # Initialize OpenAI and Whisper as before
-with open("apikeys.json", 'r') as file:
-    api_keys = json.load(file)
-    api_key = api_keys['developmentOnly']
-client = openai.OpenAI(api_key=api_key)
+openai_key = os.environ.get("OPENAI_KEY")
+if openai_key is None:
+    raise ValueError("OPENAI_KEY environment variable not set!")
+client = openai.OpenAI(api_key=openai_key)
 
 whisper_model = WhisperModel(
     "jacktol/whisper-medium.en-fine-tuned-for-ATC-faster-whisper",
