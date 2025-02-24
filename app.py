@@ -10,6 +10,7 @@ from faster_whisper import WhisperModel
 import torch
 import uuid
 import logging
+from pydantic import BaseModel
 
 app = Flask(__name__)
 
@@ -36,6 +37,10 @@ whisper_model = WhisperModel(
 sessions = {}
 session_lock = threading.Lock()
 
+class UrgencyAssessment(BaseModel):
+    reasoning: str
+    score: int
+
 def summarize_transcript(transcript: str) -> str:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -50,14 +55,26 @@ def assess_urgency(chunk_transcript: str, current_summary: str) -> int:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are an expert in aviation communications. Rate the urgency level on a scale of 1-10, where 10 is immediate emergency. Maintain a moderate urgency level where ongoing attention or caution is warranted"},
-            {"role": "user", "content": f"Previous context: {current_summary}\nPilot's last communication: {chunk_transcript}\nProvide only the number."}
-        ]
+            {"role": "system", "content": """You are an expert in aviation communications. 
+             Rate the urgency level on a scale of 1-10, where 10 is immediate emergency.
+             Provide your response in the following JSON format:
+             {
+                 "reasoning": "Your thought process here (1-2 sentences)",
+                 "score": urgency_score_number
+             }
+             Most situations should have an urgency score of 1-3.
+             Maintain a moderate urgency level where ongoing attention or caution is warranted.
+             Bird strikes, stuck landing gears and others are highly urgent, but you may drop the urgency level if
+             the pilot seems to be solving the issue."""},
+            {"role": "user", "content": f"Previous context: {current_summary}\nPilot's last communication: {chunk_transcript}"}
+        ],
+        response_format={ "type": "json_object" }
     )
     try:
-        return int(response.choices[0].message.content.strip())
+        result = UrgencyAssessment.model_validate_json(response.choices[0].message.content)
+        return result.score
     except Exception as e:
-        print("Error parsing urgency:", e)
+        logger.error(f"Error parsing urgency assessment: {e}")
         return -1
 
 def process_audio_clip(file_data: bytes, session_id: str):
