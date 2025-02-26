@@ -20,4 +20,4 @@ bash -c "apt update; \
 
 6. In VSCode, open Remote SSH and add new host. Paste that modified command in.
 
-7. Once logged in, run `python app.py` to start the server.
+7. Once logged in, run `python app.py` to start the server. (If necessary, run `pip install -r requirements.txt` first.)

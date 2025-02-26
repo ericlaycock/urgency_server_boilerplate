@@ -56,16 +56,15 @@ def assess_urgency(chunk_transcript: str, current_summary: str) -> int:
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": """You are an expert in aviation communications. 
-             Rate the urgency level on a scale of 1-10, where 10 is immediate emergency.
+             Rate the urgency level on a scale of 1-10, where 8-10 is immediate emergency (indicates danger to the aircraft or passengers)
              Provide your response in the following JSON format:
              {
                  "reasoning": "Your thought process here (1-2 sentences)",
                  "score": urgency_score_number
              }
              Most situations should have an urgency score of 1-3.
-             Maintain a moderate urgency level where ongoing attention or caution is warranted.
-             Bird strikes, stuck landing gears and others are highly urgent, but you may drop the urgency level if
-             the pilot seems to be solving the issue."""},
+             Urgency scores of 4-6 indicate no immediate danger (or a successfully completely resolved issue), but something out of the normal. 
+             Bird strikes, stuck landing gears or any ongoing issue are highly urgent 7 to 10."""},
             {"role": "user", "content": f"Previous context: {current_summary}\nPilot's last communication: {chunk_transcript}"}
         ],
         response_format={ "type": "json_object" }
